@@ -1,55 +1,85 @@
 # Hatena Blog MCP Server
 
-Cloudflare Workers + Hono + Durable Objects で実装した、はてなブログ操作用のMCPサーバーです。
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## 特徴
+ChatGPT経由ではてなブログを操作できるMCP（Model Context Protocol）サーバーです。Cloudflare Workers + Durable Objectsで動作する完全サーバーレスな実装です。
 
-- **2層のOAuth認証**:
-  1. ChatGPT → MCP サーバー用の自前OAuth 2.1実装
-  2. MCP サーバー → はてなブログ用のOAuth 1.0aクライアント
+## 主な特徴
 
-- **完全なサーバーレス**: Cloudflare Workers + Durable Objectsで動作
-- **JWT署名**: RS256によるアクセストークンの発行と検証
+- **ChatGPTからはてなブログを直接操作**: 記事の閲覧、作成、更新が可能
+- **セキュアな2層OAuth認証**:
+  - ChatGPT ↔ MCPサーバー: OAuth 2.1 + PKCE + JWT (RS256)
+  - MCPサーバー ↔ はてなブログ: OAuth 1.0a
+- **完全サーバーレス**: Cloudflare Workers + Durable Objectsで運用コスト最小化
+- **モジュラー設計**: ルート、Durable Object、ビジネスロジックを整理した保守性の高い実装
 
-## セットアップ
+## デモ
 
-### 1. 依存関係のインストール
+```
+User: 最新のブログ記事を3件表示して
+
+ChatGPT: (list_entriesツールを使用)
+1. タイトル1 - 2025-11-27
+2. タイトル2 - 2025-11-26
+3. タイトル3 - 2025-11-25
+
+User: 新しい記事を下書きで作成して
+タイトル: CloudflareでMCPサーバーを作った話
+本文: ...
+
+ChatGPT: (create_entryツールを使用)
+下書きを作成しました！
+```
+
+## クイックスタート
+
+### 前提条件
+
+- [Bun](https://bun.sh/) v1.0以上
+- Cloudflareアカウント
+- はてなアカウント
+
+### 1. インストール
 
 ```bash
+git clone https://github.com/your-username/hatena-blog-mcp.git
+cd hatena-blog-mcp
 bun install
 ```
 
-### 2. はてなブログのOAuthアプリケーション登録
+### 2. はてなOAuthアプリケーションの登録
 
-1. [はてなのOAuthアプリケーション登録](https://www.hatena.ne.jp/oauth/develop)にアクセス
+1. [はてなのOAuthアプリケーション登録ページ](https://www.hatena.ne.jp/oauth/develop)にアクセス
 2. 新規アプリケーションを作成
-3. コールバックURLを設定: `https://your-worker.workers.dev/hatena/oauth/callback`
-4. Consumer KeyとConsumer Secretを取得
+3. コールバックURL: `https://your-worker-name.workers.dev/hatena/oauth/callback`
+4. **Consumer Key**と**Consumer Secret**を取得してメモ
 
-### 3. JWT鍵とOAuthクライアントの生成
+### 3. OAuth認証情報の生成
+
+以下のコマンドでJWT鍵ペアとOAuthクライアント情報を生成します：
 
 ```bash
 bun run setup
 ```
 
-出力された環境変数を`.dev.vars`ファイルにコピーします。
+出力された環境変数をコピーしておきます。
 
 ### 4. 環境変数の設定
 
-`.dev.vars`ファイルを作成し、以下の環境変数を設定：
+`.dev.vars`ファイルを作成し、以下を設定：
 
 ```env
-# Hatena OAuth 1.0a credentials
-HATENA_CONSUMER_KEY=your_hatena_consumer_key
-HATENA_CONSUMER_SECRET=your_hatena_consumer_secret
+# はてなブログのOAuth 1.0a認証情報
+HATENA_CONSUMER_KEY=your_hatena_consumer_key_here
+HATENA_CONSUMER_SECRET=your_hatena_consumer_secret_here
 
-# Self-hosted OAuth 2.0 server settings
-OAUTH_ISSUER=https://your-worker.workers.dev
-OAUTH_CLIENT_ID=generated_client_id
-OAUTH_CLIENT_SECRET=generated_client_secret
-OAUTH_REDIRECT_URIS=https://chatgpt-oauth-callback-url
+# MCPサーバーのOAuth 2.1設定
+OAUTH_ISSUER=https://your-worker-name.workers.dev
+OAUTH_CLIENT_ID=generated_client_id_from_setup
+OAUTH_CLIENT_SECRET=generated_client_secret_from_setup
+OAUTH_REDIRECT_URIS=https://chatgpt.com/oauth-callback-url
 
-# JWT signing keys
+# JWT署名鍵（bun run setupで生成）
 JWT_PUBLIC_KEY={"kid":"...","alg":"RS256",...}
 JWT_PRIVATE_KEY={"kid":"...","alg":"RS256",...}
 ```
@@ -57,133 +87,323 @@ JWT_PRIVATE_KEY={"kid":"...","alg":"RS256",...}
 ### 5. デプロイ
 
 ```bash
+# Cloudflare Workersにデプロイ
 bun run deploy
-```
 
-### 6. OAuthクライアントの登録
-
-デプロイ後、一度だけクライアント登録を実行：
-
-```bash
-curl -X POST https://your-worker.workers.dev/oauth/setup \
+# デプロイ後、OAuthクライアントを登録（初回のみ）
+curl -X POST https://your-worker-name.workers.dev/oauth/setup \
   -H "Content-Type: application/json" \
   -d '{
-    "client_id": "your_oauth_client_id",
-    "client_secret": "your_oauth_client_secret",
-    "redirect_uris": ["https://chatgpt-callback-url"]
+    "client_id": "OAUTH_CLIENT_IDの値",
+    "client_secret": "OAUTH_CLIENT_SECRETの値",
+    "redirect_uris": ["https://chatgpt.com/oauth-callback-url"]
   }'
 ```
 
-### 7. ChatGPTでMCPサーバーを設定
+### 6. ChatGPTに接続
 
-1. ChatGPTのMCPコネクタ設定を開く
-2. 以下を設定:
-   - URL: `https://your-worker.workers.dev/mcp`
-   - 認証タイプ: OAuth
-   - Client ID: `OAUTH_CLIENT_ID`の値
-   - Client Secret: `OAUTH_CLIENT_SECRET`の値
+1. ChatGPTのMCP設定を開く
+2. 以下を設定：
+   - **URL**: `https://your-worker-name.workers.dev/mcp`
+   - **認証タイプ**: OAuth
+   - **Client ID**: `OAUTH_CLIENT_ID`の値
+   - **Client Secret**: `OAUTH_CLIENT_SECRET`の値
+3. 接続後、`start_hatena_oauth`ツールではてなブログを連携
 
-## OAuth フロー
-
-### ChatGPT → MCP (OAuth 2.1)
-
-1. ChatGPTが`/.well-known/oauth-protected-resource`を取得
-2. ChatGPTが`/oauth/authorize`にユーザーをリダイレクト
-3. MCP サーバーが認可コードを発行してChatGPTにリダイレクト
-4. ChatGPTが`/oauth/token`で認可コードをアクセストークン（JWT）に交換
-5. 以降、ChatGPTは`Authorization: Bearer <JWT>`で`/mcp`にアクセス
-
-### MCP → はてなブログ (OAuth 1.0a)
-
-1. ChatGPTがMCPツール`start_hatena_oauth`を呼び出し
-2. MCPサーバーがはてなのrequest tokenを取得して`authorizeUrl`を返す
-3. ユーザーがはてなで認可
-4. はてなが`/hatena/oauth/callback`にリダイレクト
-5. MCPサーバーがaccess tokenを取得してDurable Objectに保存
-6. 以降、MCP操作はユーザーのはてなアクセストークンを使用
-
-## API エンドポイント
-
-### Well-Known Endpoints
-
-- `GET /.well-known/oauth-protected-resource`: MCP OAuth リソースメタデータ
-- `GET /.well-known/oauth-authorization-server`: OAuth認可サーバーメタデータ
-
-### OAuth Endpoints
-
-- `GET /oauth/authorize`: OAuth認可エンドポイント
-- `POST /oauth/token`: トークンエンドポイント
-- `GET /oauth/jwks`: 公開鍵エンドポイント（JWK Set）
-- `POST /oauth/setup`: クライアント登録（一度のみ実行）
-
-### MCP Endpoints
-
-- `POST /mcp`: MCP JSON-RPCエンドポイント（Bearer認証必須）
-
-### Hatena Callback
-
-- `GET /hatena/oauth/callback`: はてなOAuthコールバック
-
-## MCP ツール
+## 利用可能なMCPツール
 
 ### `start_hatena_oauth`
 
-はてなブログとの連携を開始します。`authorizeUrl`を返すので、ユーザーがそのURLにアクセスして認可を完了します。
+はてなブログとのOAuth連携を開始します。返されたURLにアクセスして認可を完了してください。
+
+```json
+// 入力: なし
+// 出力:
+{
+  "authorizeUrl": "https://www.hatena.com/oauth/authorize?...",
+  "state": "uuid-string"
+}
+```
 
 ### `list_entries`
 
-ブログエントリーの一覧を取得します。
+ブログ記事の一覧を取得します。
 
-パラメータ:
-- `blogId` (string): ブログID
-- `limit` (number, optional): 取得件数
-- `offset` (number, optional): オフセット
+```json
+// 入力:
+{
+  "blogId": "username.hatenablog.com",  // 必須
+  "limit": 10,                           // オプション
+  "offset": 0                            // オプション
+}
+```
 
 ### `create_entry`
 
-新しいブログエントリーを作成します。
+新しいブログ記事を作成します。
 
-パラメータ:
-- `blogId` (string): ブログID
-- `title` (string): タイトル
-- `content` (string): 本文
-- `draft` (boolean, optional): 下書きかどうか
+```json
+// 入力:
+{
+  "blogId": "username.hatenablog.com",  // 必須
+  "title": "記事のタイトル",              // 必須
+  "content": "# 本文\nMarkdown形式",     // 必須
+  "draft": true                          // オプション（デフォルト: false）
+}
+```
 
 ### `update_entry`
 
-既存のブログエントリーを更新します。
+既存の記事を更新します。
 
-パラメータ:
-- `blogId` (string): ブログID
-- `entryId` (string): エントリーID
-- `title` (string, optional): タイトル
-- `content` (string, optional): 本文
-- `draft` (boolean, optional): 下書きかどうか
+```json
+// 入力:
+{
+  "blogId": "username.hatenablog.com",  // 必須
+  "entryId": "12345678901234567890",    // 必須
+  "title": "新しいタイトル",              // オプション
+  "content": "新しい本文",                // オプション
+  "draft": false                         // オプション
+}
+```
+
+### `save_blog`
+
+よく使うブログIDを保存します。
+
+```json
+// 入力:
+{
+  "blogId": "username.hatenablog.com",  // 必須
+  "title": "マイブログ",                  // オプション
+  "url": "https://username.hatenablog.com" // オプション
+}
+```
+
+### `list_saved_blogs`
+
+保存済みのブログ一覧を取得します。
+
+```json
+// 入力: なし
+```
+
+## アーキテクチャ
+
+### システム構成
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                          ChatGPT                            │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           │ OAuth 2.1 + PKCE
+                           │ Bearer JWT (RS256)
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│              MCP Server (Cloudflare Workers)                │
+│                                                             │
+│  ┌─────────────┐  ┌──────────────────────────────────┐    │
+│  │   Routes    │  │      Durable Objects             │    │
+│  │             │  │                                  │    │
+│  │ ・discovery │  │ ・UserDurableObject              │    │
+│  │ ・oauth     │  │   (ユーザー状態とトークン)        │    │
+│  │ ・mcp       │  │ ・ClientDurableObject            │    │
+│  │ ・callback  │  │   (OAuthクライアント情報)         │    │
+│  └─────────────┘  │ ・AuthCodeDurableObject          │    │
+│                   │   (認可コード、TTL: 10分)         │    │
+│  ┌─────────────┐  │ ・OAuthStateDurableObject        │    │
+│  │  Libraries  │  │   (はてなOAuth一時状態)          │    │
+│  │             │  └──────────────────────────────────┘    │
+│  │ ・jwt       │                                           │
+│  │ ・hatena    │                                           │
+│  │ ・state     │                                           │
+│  │ ・crypto    │                                           │
+│  └─────────────┘                                           │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           │ OAuth 1.0a
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│               Hatena Blog AtomPub API                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### OAuth認証フロー
+
+#### ChatGPT → MCPサーバー (OAuth 2.1 with PKCE)
+
+1. ChatGPTが`/.well-known/oauth-protected-resource`でOAuth設定を取得
+2. ChatGPTが`code_verifier`を生成し、`code_challenge = SHA256(code_verifier)`を計算
+3. `/oauth/authorize`にユーザーをリダイレクト（`code_challenge`を含む）
+4. MCPサーバーが認可コードを生成し`AuthCodeDurableObject`に保存
+5. ChatGPTに認可コードを返す
+6. ChatGPTが`/oauth/token`に認可コードと`code_verifier`を送信
+7. MCPサーバーがPKCE検証（`SHA256(code_verifier) == code_challenge`）
+8. 検証成功後、JWT（RS256署名）を発行
+9. ChatGPTは以降`Authorization: Bearer <JWT>`で`/mcp`にアクセス
+
+#### MCPサーバー → はてなブログ (OAuth 1.0a)
+
+1. ChatGPTが`start_hatena_oauth`ツールを実行
+2. MCPサーバーがはてなにrequest tokenを要求
+3. request tokenと秘密鍵を`OAuthStateDurableObject`に一時保存
+4. `authorizeUrl`をChatGPTに返す
+5. ユーザーがはてなで認可
+6. はてなが`/hatena/oauth/callback`にリダイレクト
+7. MCPサーバーがaccess tokenを取得
+8. access tokenを`UserDurableObject`に永続保存
+9. 以降、はてなAPIへのリクエストにaccess tokenを使用
+
+### ディレクトリ構造
+
+```
+src/
+├── index.ts                    # エントリーポイント
+├── types.ts                    # TypeScript型定義
+│
+├── routes/                     # HTTPルート（Honoアプリ）
+│   ├── discovery.ts            # /.well-known/* エンドポイント
+│   ├── oauth.ts                # /oauth/* エンドポイント
+│   ├── hatena-callback.ts      # /hatena/oauth/callback
+│   └── mcp.ts                  # /mcp エンドポイント
+│
+├── do/                         # Durable Object定義
+│   ├── user-do.ts              # ユーザー状態管理
+│   ├── client-do.ts            # OAuthクライアント管理
+│   ├── auth-code-do.ts         # OAuth認可コード管理
+│   ├── oauth-state-do.ts       # はてなOAuth状態管理
+│   └── access-token-do.ts      # 将来の拡張用
+│
+├── lib/                        # ビジネスロジック
+│   ├── jwt.ts                  # JWT署名・検証（RS256）
+│   ├── hatena.ts               # はてなAPI呼び出し
+│   ├── state.ts                # Durable Object操作ヘルパー
+│   └── crypto.ts               # PKCE用SHA-256実装
+│
+└── mcp/                        # MCP Server実装
+    └── server.ts               # MCPツール定義とハンドラ
+
+scripts/
+└── setup.ts                    # JWT鍵ペアとOAuth情報生成
+
+wrangler.toml                   # Cloudflare Workers設定
+package.json                    # 依存関係
+```
 
 ## ローカル開発
+
+### 開発サーバーの起動
 
 ```bash
 bun run dev
 ```
 
-ローカル開発時は`http://localhost:8787`でアクセスできます。
+開発サーバーは`http://localhost:8787`で起動します。
 
-## アーキテクチャ
+### ローカルでのテスト
 
+```bash
+# Well-knownエンドポイントの確認
+curl http://localhost:8787/.well-known/oauth-protected-resource
+
+# JWKSの確認
+curl http://localhost:8787/oauth/jwks
 ```
-ChatGPT
-  ↓ OAuth 2.1 (自前実装)
-MCP Server (Cloudflare Workers)
-  ├── Durable Objects
-  │   ├── UserDO: ユーザーごとのはてなトークン
-  │   ├── OAuthStateDO: はてなOAuthの一時状態
-  │   ├── ClientDO: OAuthクライアント情報
-  │   ├── AuthCodeDO: OAuth認可コード
-  │   └── AccessTokenDO: OAuthアクセストークン
-  ↓ OAuth 1.0a (クライアント)
-Hatena Blog API
+
+### デバッグ
+
+Cloudflare Workersのログを確認：
+
+```bash
+wrangler tail
 ```
+
+## トラブルシューティング
+
+### `invalid_client` エラーが出る
+
+`/oauth/setup`エンドポイントでクライアントを登録したか確認してください。
+
+```bash
+curl -X POST https://your-worker.workers.dev/oauth/setup \
+  -H "Content-Type: application/json" \
+  -d '{"client_id":"...","client_secret":"...","redirect_uris":["..."]}'
+```
+
+### `Hatena account not linked` エラー
+
+`start_hatena_oauth`ツールでまずはてなブログとの連携を完了してください。
+
+### PKCE検証エラー
+
+ChatGPTクライアントが正しく`code_verifier`を送信しているか確認してください。
+
+### JWT検証エラー
+
+- `JWT_PUBLIC_KEY`と`JWT_PRIVATE_KEY`が正しく設定されているか確認
+- 両方の鍵の`kid`（Key ID）が一致しているか確認
+
+## 環境変数リファレンス
+
+| 変数名 | 説明 | 例 |
+|--------|------|-----|
+| `HATENA_CONSUMER_KEY` | はてなOAuthアプリのConsumer Key | `abcd1234...` |
+| `HATENA_CONSUMER_SECRET` | はてなOAuthアプリのConsumer Secret | `xyz789...` |
+| `OAUTH_ISSUER` | OAuthトークンの発行者URL | `https://your-worker.workers.dev` |
+| `OAUTH_CLIENT_ID` | MCPクライアントID | UUID形式 |
+| `OAUTH_CLIENT_SECRET` | MCPクライアントシークレット | ランダム文字列 |
+| `OAUTH_REDIRECT_URIS` | リダイレクトURI（カンマ区切り） | `https://chatgpt.com/...` |
+| `JWT_PUBLIC_KEY` | JWT検証用公開鍵（JWK形式） | JSON文字列 |
+| `JWT_PRIVATE_KEY` | JWT署名用秘密鍵（JWK形式） | JSON文字列 |
+
+## API エンドポイント一覧
+
+### Discovery Endpoints
+
+| エンドポイント | メソッド | 説明 |
+|---------------|---------|------|
+| `/.well-known/oauth-protected-resource` | GET | MCP OAuthリソースメタデータ |
+| `/.well-known/oauth-authorization-server` | GET | OAuth認可サーバーメタデータ |
+
+### OAuth Endpoints
+
+| エンドポイント | メソッド | 説明 |
+|---------------|---------|------|
+| `/oauth/authorize` | GET | OAuth認可エンドポイント（PKCE対応） |
+| `/oauth/token` | POST | トークン取得（認可コード→JWT） |
+| `/oauth/jwks` | GET | 公開鍵セット（JWK Set） |
+| `/oauth/setup` | POST | クライアント登録（初回のみ） |
+
+### MCP Endpoint
+
+| エンドポイント | メソッド | 説明 |
+|---------------|---------|------|
+| `/mcp` | POST | MCP JSON-RPCエンドポイント（Bearer認証必須） |
+
+### Callback Endpoint
+
+| エンドポイント | メソッド | 説明 |
+|---------------|---------|------|
+| `/hatena/oauth/callback` | GET | はてなOAuthコールバック |
+
+## コントリビューション
+
+プルリクエストを歓迎します！大きな変更の場合は、まずissueを開いて変更内容を議論してください。
+
+1. このリポジトリをフォーク
+2. フィーチャーブランチを作成 (`git checkout -b feature/amazing-feature`)
+3. 変更をコミット (`git commit -m 'Add amazing feature'`)
+4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
+5. プルリクエストを作成
 
 ## ライセンス
 
-MIT
+MIT License - 詳細は[LICENSE](LICENSE)ファイルを参照してください。
+
+## 関連リンク
+
+- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)
+- [Hatena Blog AtomPub API](https://developer.hatena.ne.jp/ja/documents/blog/apis/atom)
+- [Cloudflare Workers](https://workers.cloudflare.com/)
+- [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/)

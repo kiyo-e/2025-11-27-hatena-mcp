@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import type { Env } from '../types';
+import type { CloudflareBindings } from '../types';
 
-export const app = new Hono<{ Bindings: Env }>();
+export const app = new Hono<{ Bindings: CloudflareBindings }>();
 
 app.get('/.well-known/oauth-protected-resource', (c) => {
   const baseUrl = new URL(c.req.url).origin;

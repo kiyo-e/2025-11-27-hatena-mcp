@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import { StreamableHTTPTransport } from '@hono/mcp';
-import type { Env } from '../types';
+import type { CloudflareBindings } from '../types';
 import { verifyBearerToken } from '../lib/auth';
 import { buildMcpServer, handleMcpRequest } from '../mcp/server';
 
-export const app = new Hono<{ Bindings: Env }>();
+export const app = new Hono<{ Bindings: CloudflareBindings }>();
 
 app.all('/mcp', async (c) => {
   try {

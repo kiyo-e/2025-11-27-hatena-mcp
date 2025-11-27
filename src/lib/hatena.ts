@@ -82,11 +82,23 @@ async function signedRequest(
 }
 
 export async function getRequestToken(env: Env, callbackUrl: string) {
-  const resp = await signedRequest('POST', `${HATENA_HOST}/oauth/initiate`, {
-    consumerKey: env.HATENA_CONSUMER_KEY,
-    consumerSecret: env.HATENA_CONSUMER_SECRET,
-    callback: callbackUrl,
-  });
+  // Hatena Blog AtomPub API requires both read_private and write_private for all entry operations.
+  const scope = 'read_private,write_private';
+  const bodyParams = new URLSearchParams({ scope });
+  const resp = await signedRequest(
+    'POST',
+    `${HATENA_HOST}/oauth/initiate`,
+    {
+      consumerKey: env.HATENA_CONSUMER_KEY,
+      consumerSecret: env.HATENA_CONSUMER_SECRET,
+      callback: callbackUrl,
+    },
+    { scope },
+    {
+      body: bodyParams.toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    },
+  );
   const text = await resp.text();
   if (!resp.ok) throw new Error(`Hatena request token failed: ${resp.status} ${text}`);
   const params = new URLSearchParams(text);

@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { Env } from '../types';
-import { getUserState, storeOAuthState } from '../lib/state';
+import { clearUserHatena, getUserState, saveUserBlog, storeOAuthState } from '../lib/state';
 import { buildAuthorizeUrl, createEntry, getRequestToken, listEntries, updateEntry } from '../lib/hatena';
 import * as z from 'zod';
 
@@ -136,6 +136,64 @@ export function buildMcpServer(env: Env, userId: string, requestUrl: string) {
         return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result };
       } catch (e: any) {
         return { content: [{ type: 'text', text: e?.message ?? 'update_entry failed' }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    'save_blog',
+    {
+      title: 'Save Hatena blog metadata',
+      description: 'Stores a blogId (and optional title/url) for later reuse.',
+      inputSchema: z.object({
+        blogId: z.string(),
+        title: z.string().optional(),
+        url: z.string().url().optional(),
+      }),
+    },
+    async (args) => {
+      try {
+        ensureHatenaSession(await getUserState(env, userId));
+        const state = await saveUserBlog(env, userId, { blogId: args.blogId, title: args.title, url: args.url });
+        const blogs = state.hatena?.blogs ?? [];
+        return { content: [{ type: 'text', text: JSON.stringify({ saved: args.blogId, blogs }) }], structuredContent: { saved: args.blogId, blogs } };
+      } catch (e: any) {
+        return { content: [{ type: 'text', text: e?.message ?? 'save_blog failed' }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    'list_saved_blogs',
+    {
+      title: 'List saved Hatena blogs',
+      description: 'Returns blogId/title/url saved in the user state.',
+      inputSchema: z.object({}).strict(),
+    },
+    async () => {
+      try {
+        const state = ensureHatenaSession(await getUserState(env, userId));
+        const blogs = state.blogs ?? [];
+        return { content: [{ type: 'text', text: JSON.stringify({ blogs }) }], structuredContent: { blogs } };
+      } catch (e: any) {
+        return { content: [{ type: 'text', text: e?.message ?? 'list_saved_blogs failed' }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    'reset_hatena_session',
+    {
+      title: 'Clear stored Hatena tokens',
+      description: 'Deletes the linked Hatena account from durable storage so you can re-authenticate cleanly.',
+      inputSchema: z.object({}).strict(),
+    },
+    async () => {
+      try {
+        await clearUserHatena(env, userId);
+        return { content: [{ type: 'text', text: 'Hatena session cleared. Run start_hatena_oauth again.' }] };
+      } catch (e: any) {
+        return { content: [{ type: 'text', text: e?.message ?? 'reset_hatena_session failed' }], isError: true };
       }
     }
   );

@@ -1,7 +1,7 @@
 export type BlogInfo = {
   blogId: string;
-  title: string;
-  url: string;
+  title?: string;
+  url?: string;
 };
 
 export type UserState = {
@@ -37,3 +37,6 @@ export interface Env {
   JWT_PRIVATE_KEY: string;
   JWT_PUBLIC_KEY: string;
 }
+
+// Alias to align with Hono/Cloudflare naming convention
+export type CloudflareBindings = Env;

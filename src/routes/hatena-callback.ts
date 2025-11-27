@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { consumeOAuthState, deleteOAuthState, updateUserHatena } from '../lib/state';
 import { exchangeAccessToken } from '../lib/hatena';
-import type { Env } from '../types';
+import type { CloudflareBindings } from '../types';
 
-export const app = new Hono<{ Bindings: Env }>();
+export const app = new Hono<{ Bindings: CloudflareBindings }>();
 
 app.get('/hatena/oauth/callback', async (c) => {
   const url = new URL(c.req.url);

@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { signAccessToken, buildJWKS } from '../lib/jwt';
 import { sha256base64url } from '../lib/crypto';
-import type { Env } from '../types';
+import type { CloudflareBindings } from '../types';
 
-export const app = new Hono<{ Bindings: Env }>();
+export const app = new Hono<{ Bindings: CloudflareBindings }>();
 
 app.get('/oauth/jwks', (c) => {
   const publicKeyJson = c.env.JWT_PUBLIC_KEY;
