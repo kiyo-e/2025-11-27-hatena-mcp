@@ -1,0 +1,39 @@
+name = "hatena-blog-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-11-27"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "USER_DO"
+class_name = "UserDurableObject"
+
+[[durable_objects.bindings]]
+name = "OAUTH_STATE_DO"
+class_name = "OAuthStateDurableObject"
+
+[[durable_objects.bindings]]
+name = "CLIENT_DO"
+class_name = "ClientDurableObject"
+
+[[durable_objects.bindings]]
+name = "AUTH_CODE_DO"
+class_name = "AuthCodeDurableObject"
+
+[[durable_objects.bindings]]
+name = "ACCESS_TOKEN_DO"
+class_name = "AccessTokenDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["UserDurableObject", "OAuthStateDurableObject"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["ClientDurableObject", "AuthCodeDurableObject", "AccessTokenDurableObject"]
+
+[observability]
+[observability.logs]
+enabled = false
+head_sampling_rate = 1
+invocation_logs = true
+persist = false
