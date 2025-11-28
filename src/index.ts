@@ -4,6 +4,7 @@ import { app as discoveryRoutes } from './routes/discovery';
 import { app as oauthRoutes } from './routes/oauth';
 import { app as hatenaCallbackRoute } from './routes/hatena-callback';
 import { app as mcpRoutes } from './routes/mcp';
+import { app as homeRoute } from './routes/home';
 import { UserDurableObject } from './do/user-do';
 import { OAuthStateDurableObject } from './do/oauth-state-do';
 import { ClientDurableObject } from './do/client-do';
@@ -17,6 +18,7 @@ app.route('/', discoveryRoutes);
 app.route('/', oauthRoutes);
 app.route('/', hatenaCallbackRoute);
 app.route('/', mcpRoutes);
+app.route('/', homeRoute);
 
 export default app;
 export {
