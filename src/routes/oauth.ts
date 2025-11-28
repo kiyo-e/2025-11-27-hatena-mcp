@@ -59,6 +59,17 @@ app.get('/oauth/authorize', async (c) => {
 });
 
 app.post('/oauth/setup', async (c) => {
+  const setupSecret = c.env.SETUP_SECRET;
+  if (!setupSecret) {
+    return c.json({ error: 'server_not_configured' }, 500);
+  }
+
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
+  if (token !== setupSecret) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+
   const body = (await c.req.json()) as any;
   const { client_id, client_secret, redirect_uris } = body;
 

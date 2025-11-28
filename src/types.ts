@@ -36,6 +36,7 @@ export interface Env {
   OAUTH_REDIRECT_URIS: string;
   JWT_PRIVATE_KEY: string;
   JWT_PUBLIC_KEY: string;
+  SETUP_SECRET: string;
 }
 
 // Alias to align with Hono/Cloudflare naming convention

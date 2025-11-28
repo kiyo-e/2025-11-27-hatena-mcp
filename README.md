@@ -78,6 +78,7 @@ OAUTH_ISSUER=https://your-worker-name.workers.dev
 OAUTH_CLIENT_ID=generated_client_id_from_setup
 OAUTH_CLIENT_SECRET=generated_client_secret_from_setup
 OAUTH_REDIRECT_URIS=https://chatgpt.com/oauth-callback-url
+SETUP_SECRET=a_strong_random_string_for_setup_auth
 
 # JWT署名鍵（bun run setupで生成）
 JWT_PUBLIC_KEY={"kid":"...","alg":"RS256",...}
@@ -93,6 +94,7 @@ bun run deploy
 # デプロイ後、OAuthクライアントを登録（初回のみ）
 curl -X POST https://your-worker-name.workers.dev/oauth/setup \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SETUP_SECRET" \
   -d '{
     "client_id": "OAUTH_CLIENT_IDの値",
     "client_secret": "OAUTH_CLIENT_SECRETの値",
@@ -356,6 +358,7 @@ ChatGPTクライアントが正しく`code_verifier`を送信しているか確�
 | `OAUTH_REDIRECT_URIS` | リダイレクトURI（カンマ区切り） | `https://chatgpt.com/...` |
 | `JWT_PUBLIC_KEY` | JWT検証用公開鍵（JWK形式） | JSON文字列 |
 | `JWT_PRIVATE_KEY` | JWT署名用秘密鍵（JWK形式） | JSON文字列 |
+| `SETUP_SECRET` | `/oauth/setup` 用の管理者シークレット（Bearerトークン） | ランダム長文字列 |
 
 ## API エンドポイント一覧
 
