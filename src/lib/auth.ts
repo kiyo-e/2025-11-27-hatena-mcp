@@ -3,6 +3,19 @@ import { Env } from '../types';
 
 export type AuthContext = { userId: string; token: JWTPayload };
 
+function unauthorized(request: Request, env: Env, description: string) {
+  const origin = new URL(request.url).origin;
+  const resourceMetadata = `${origin}/.well-known/oauth-protected-resource`;
+  const header =
+    `Bearer resource_metadata="${resourceMetadata}", ` +
+    `error="invalid_token", error_description="${description}"`;
+
+  return new Response(description, {
+    status: 401,
+    headers: { 'WWW-Authenticate': header },
+  });
+}
+
 export async function verifyBearerToken(
   request: Request,
   env: Env,
@@ -10,7 +23,7 @@ export async function verifyBearerToken(
 ): Promise<AuthContext> {
   const auth = request.headers.get('authorization');
   if (!auth?.startsWith('Bearer ')) {
-    throw new Response('Missing bearer token', { status: 401 });
+    throw unauthorized(request, env, 'Missing bearer token');
   }
   const token = auth.slice('Bearer '.length);
 
@@ -26,13 +39,18 @@ export async function verifyBearerToken(
   // Verify JWT
   const issuer = env.OAUTH_ISSUER;
   const audience = opts?.resource ? [opts.resource, issuer] : issuer;
-  const { payload } = await jwtVerify(token, publicKey, {
-    issuer,
-    audience,
-  });
+  let payload: JWTPayload;
+  try {
+    ({ payload } = await jwtVerify(token, publicKey, {
+      issuer,
+      audience,
+    }));
+  } catch (_err) {
+    throw unauthorized(request, env, 'Invalid or expired token');
+  }
 
   const sub = payload.sub;
-  if (!sub) throw new Response('Invalid token: no sub', { status: 401 });
+  if (!sub) throw unauthorized(request, env, 'Invalid token: no sub');
 
   return { userId: sub, token: payload };
 }
