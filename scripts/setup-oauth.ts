@@ -18,7 +18,9 @@ async function main() {
 
   console.log('OAUTH_CLIENT_ID=' + clientId);
   console.log('OAUTH_CLIENT_SECRET=' + clientSecret);
-  console.log('OAUTH_REDIRECT_URIS=https://your-domain.workers.dev/callback');
+  console.log(
+    'OAUTH_REDIRECT_URIS=https://chatgpt.com/oauth-callback-url,https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback'
+  );
   console.log('OAUTH_ISSUER=https://your-domain.workers.dev');
 
   console.log('\n=== Client Registration Info ===');
@@ -27,7 +29,11 @@ async function main() {
   console.log('Body: {');
   console.log('  "client_id": "' + clientId + '",');
   console.log('  "client_secret": "' + clientSecret + '",');
-  console.log('  "redirect_uris": ["https://chatgpt-callback-url"]');
+  console.log('  "redirect_uris": [');
+  console.log('    "https://chatgpt.com/oauth-callback-url",');
+  console.log('    "https://claude.ai/api/mcp/auth_callback",');
+  console.log('    "https://claude.com/api/mcp/auth_callback"');
+  console.log('  ]');
   console.log('}');
   console.log('\nOr use the client_id and client_secret when configuring ChatGPT OAuth connector.');
 }

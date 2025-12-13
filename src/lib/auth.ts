@@ -3,9 +3,12 @@ import { Env } from '../types';
 
 export type AuthContext = { userId: string; token: JWTPayload };
 
-function unauthorized(request: Request, env: Env, description: string) {
+function unauthorized(request: Request, description: string, resourceMetadataPath = '/.well-known/oauth-protected-resource/mcp') {
   const origin = new URL(request.url).origin;
-  const resourceMetadata = `${origin}/.well-known/oauth-protected-resource`;
+  const normalizedPath = resourceMetadataPath.startsWith('/')
+    ? resourceMetadataPath
+    : `/${resourceMetadataPath}`;
+  const resourceMetadata = `${origin}${normalizedPath}`;
   const header =
     `Bearer resource_metadata="${resourceMetadata}", ` +
     `error="invalid_token", error_description="${description}"`;
@@ -19,11 +22,12 @@ function unauthorized(request: Request, env: Env, description: string) {
 export async function verifyBearerToken(
   request: Request,
   env: Env,
-  opts?: { resource?: string }
+  opts?: { resource?: string | string[]; resourceMetadataPath?: string }
 ): Promise<AuthContext> {
+  const resourceMetadataPath = opts?.resourceMetadataPath;
   const auth = request.headers.get('authorization');
   if (!auth?.startsWith('Bearer ')) {
-    throw unauthorized(request, env, 'Missing bearer token');
+    throw unauthorized(request, 'Missing bearer token', resourceMetadataPath);
   }
   const token = auth.slice('Bearer '.length);
 
@@ -38,7 +42,12 @@ export async function verifyBearerToken(
 
   // Verify JWT
   const issuer = env.OAUTH_ISSUER;
-  const audience = opts?.resource ? [opts.resource, issuer] : issuer;
+  const resources = opts?.resource
+    ? Array.isArray(opts.resource)
+      ? opts.resource
+      : [opts.resource]
+    : [];
+  const audience = resources.length > 0 ? [...resources, issuer] : [issuer];
   let payload: JWTPayload;
   try {
     ({ payload } = await jwtVerify(token, publicKey, {
@@ -46,11 +55,11 @@ export async function verifyBearerToken(
       audience,
     }));
   } catch (_err) {
-    throw unauthorized(request, env, 'Invalid or expired token');
+    throw unauthorized(request, 'Invalid or expired token', resourceMetadataPath);
   }
 
   const sub = payload.sub;
-  if (!sub) throw unauthorized(request, env, 'Invalid token: no sub');
+  if (!sub) throw unauthorized(request, 'Invalid token: no sub', resourceMetadataPath);
 
   return { userId: sub, token: payload };
 }

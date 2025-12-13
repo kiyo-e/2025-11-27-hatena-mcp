@@ -153,7 +153,9 @@ app.post('/oauth/token', async (c) => {
     return c.json({ error: 'invalid_grant' }, 400);
   }
 
-  const resolvedResource = authCode.resource ?? resource;
+  const issuer = new URL(c.req.url).origin;
+  const defaultResource = `${issuer}/mcp`;
+  const resolvedResource = authCode.resource ?? resource ?? defaultResource;
   if (resource && authCode.resource && resource !== authCode.resource) {
     return c.json({ error: 'invalid_target', error_description: 'resource mismatch' }, 400);
   }
@@ -175,8 +177,7 @@ app.post('/oauth/token', async (c) => {
   }
 
   const privateJwk = JSON.parse(privateKeyJson);
-  const issuer = new URL(c.req.url).origin;
-  const audience = resolvedResource ?? issuer;
+  const audience = resolvedResource;
   const expiresIn = 3600;
 
   const accessToken = await signAccessToken(

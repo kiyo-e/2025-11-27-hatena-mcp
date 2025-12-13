@@ -77,7 +77,7 @@ HATENA_CONSUMER_SECRET=your_hatena_consumer_secret_here
 OAUTH_ISSUER=https://your-worker-name.workers.dev
 OAUTH_CLIENT_ID=generated_client_id_from_setup
 OAUTH_CLIENT_SECRET=generated_client_secret_from_setup
-OAUTH_REDIRECT_URIS=https://chatgpt.com/oauth-callback-url
+OAUTH_REDIRECT_URIS=https://chatgpt.com/oauth-callback-url,https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback
 SETUP_SECRET=a_strong_random_string_for_setup_auth
 
 # JWT署名鍵（bun run setupで生成）
@@ -98,7 +98,11 @@ curl -X POST https://your-worker-name.workers.dev/oauth/setup \
   -d '{
     "client_id": "OAUTH_CLIENT_IDの値",
     "client_secret": "OAUTH_CLIENT_SECRETの値",
-    "redirect_uris": ["https://chatgpt.com/oauth-callback-url"]
+    "redirect_uris": [
+      "https://chatgpt.com/oauth-callback-url",
+      "https://claude.ai/api/mcp/auth_callback",
+      "https://claude.com/api/mcp/auth_callback"
+    ]
   }'
 ```
 
@@ -111,6 +115,8 @@ curl -X POST https://your-worker-name.workers.dev/oauth/setup \
    - **Client ID**: `OAUTH_CLIENT_ID`の値
    - **Client Secret**: `OAUTH_CLIENT_SECRET`の値
 3. 接続後、`start_hatena_oauth`ツールではてなブログを連携
+
+Claude で利用する場合は OAuth コールバック URL として `https://claude.ai/api/mcp/auth_callback`（将来的に `https://claude.com/api/mcp/auth_callback` へ移行する可能性あり）を `redirect_uris` に含めてください。
 
 ## 利用可能なMCPツール
 
@@ -355,7 +361,7 @@ ChatGPTクライアントが正しく`code_verifier`を送信しているか確�
 | `OAUTH_ISSUER` | OAuthトークンの発行者URL | `https://your-worker.workers.dev` |
 | `OAUTH_CLIENT_ID` | MCPクライアントID | UUID形式 |
 | `OAUTH_CLIENT_SECRET` | MCPクライアントシークレット | ランダム文字列 |
-| `OAUTH_REDIRECT_URIS` | リダイレクトURI（カンマ区切り） | `https://chatgpt.com/...` |
+| `OAUTH_REDIRECT_URIS` | リダイレクトURI（カンマ区切り） | `https://chatgpt.com/... , https://claude.ai/api/mcp/auth_callback` |
 | `JWT_PUBLIC_KEY` | JWT検証用公開鍵（JWK形式） | JSON文字列 |
 | `JWT_PRIVATE_KEY` | JWT署名用秘密鍵（JWK形式） | JSON文字列 |
 | `SETUP_SECRET` | `/oauth/setup` 用の管理者シークレット（Bearerトークン） | ランダム長文字列 |
