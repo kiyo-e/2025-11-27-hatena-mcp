@@ -1,9 +1,26 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { getCookie, setCookie } from 'hono/cookie';
 import { signAccessToken, buildJWKS } from '../lib/jwt';
 import { sha256base64url } from '../lib/crypto';
 import type { CloudflareBindings } from '../types';
 
 export const app = new Hono<{ Bindings: CloudflareBindings }>();
+
+function getOrCreateUserId(c: Context<{ Bindings: CloudflareBindings }>) {
+  const existing = getCookie(c, 'mcp_uid');
+  if (existing) return existing;
+
+  const id = crypto.randomUUID();
+  setCookie(c, 'mcp_uid', id, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  return id;
+}
 
 app.get('/oauth/jwks', (c) => {
   const publicKeyJson = c.env.JWT_PUBLIC_KEY;
@@ -35,7 +52,7 @@ app.get('/oauth/authorize', async (c) => {
     return c.text('Invalid client or redirect_uri', 400);
   }
 
-  const userId = crypto.randomUUID();
+  const userId = getOrCreateUserId(c);
   const code = crypto.randomUUID();
   const authCodeStub = c.env.AUTH_CODE_DO.get(c.env.AUTH_CODE_DO.idFromName(code));
   await authCodeStub.storeCode({
